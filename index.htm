@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BIOGENIX — Central Dogma Simulation v2.0</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:ital,wght@1,900&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #050505;
+      --ink: #ffffff;
+      --accent: #3b82f6;
+      --accent2: #10b981;
+      --pink: #ec4899;
+      --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+      --font-display: 'Playfair Display', serif;
+    }
+
+    html, body, #root {
+      height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      overflow-x: hidden;
+    }
+
+    ::selection { background: rgba(59,130,246,0.3); }
+
+    /* Scientific grid background */
+    .scientific-grid {
+      background-image:
+        linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+
+    .glass {
+      background: rgba(255,255,255,0.03);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .glow-blue  { box-shadow: 0 0 30px rgba(59,130,246,0.2); }
+    .glow-green { box-shadow: 0 0 30px rgba(16,185,129,0.2); }
+
+    /* ── Layout ─────────────────────────────────────── */
+    #app {
+      min-height: 100vh;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Ambient blobs */
+    .blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+    }
+    .blob-blue  { width:384px;height:384px;background:rgba(59,130,246,0.10);top:25%;left:25%; }
+    .blob-green { width:384px;height:384px;background:rgba(16,185,129,0.10);bottom:25%;right:25%; }
+
+    /* Header */
+    header {
+      position: relative;
+      z-index: 20;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.03);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 2rem;
+    }
+    .logo-icon {
+      width:40px;height:40px;
+      background: var(--accent);
+      border-radius: 8px;
+      display:flex;align-items:center;justify-content:center;
+      box-shadow: 0 0 20px rgba(59,130,246,0.3);
+      font-size:22px;
+    }
+    .logo-wrap { display:flex;align-items:center;gap:12px; }
+    .logo-title { font-size:1.2rem;font-weight:700;letter-spacing:0.05em; }
+    .logo-sub { font-size:10px;letter-spacing:0.2em;color:rgba(255,255,255,0.4);font-family:var(--font-mono);text-transform:uppercase; }
+
+    /* Stage dots */
+    .stage-dots { display:flex;align-items:center;gap:4px; }
+    .stage-dot {
+      width:8px;height:8px;border-radius:50%;
+      transition: all 0.5s ease;
+    }
+    .stage-dot.active   { background:var(--accent);box-shadow:0 0 10px rgba(59,130,246,0.5); }
+    .stage-dot.inactive { background:rgba(255,255,255,0.1); }
+    .stage-line { width:16px;height:1px; }
+    .stage-line.active   { background:rgba(59,130,246,0.4); }
+    .stage-line.inactive { background:rgba(255,255,255,0.05); }
+
+    /* Main grid */
+    main {
+      position: relative;
+      z-index: 10;
+      display: grid;
+      grid-template-columns: 1fr;
+      flex: 1;
+    }
+    @media(min-width:1024px) {
+      main { grid-template-columns: 33.333% 66.666%; }
+    }
+
+    /* Left panel */
+    aside {
+      border-right: 1px solid rgba(255,255,255,0.1);
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      overflow-y: auto;
+      max-height: calc(100vh - 73px);
+    }
+
+    /* Form elements */
+    label.field-label {
+      display:block;
+      font-size:10px;
+      letter-spacing:0.2em;
+      text-transform:uppercase;
+      color:rgba(255,255,255,0.4);
+      font-weight:700;
+      font-family:var(--font-mono);
+      margin-bottom:8px;
+    }
+    textarea {
+      width:100%;height:160px;
+      background:rgba(255,255,255,0.05);
+      border:1px solid rgba(255,255,255,0.1);
+      border-radius:12px;
+      padding:1rem;
+      font-family:var(--font-mono);
+      font-size:1.25rem;
+      color:#fff;
+      text-transform:uppercase;
+      resize:none;
+      outline:none;
+      transition:border-color 0.2s;
+    }
+    textarea:focus { border-color:var(--accent); }
+    .seq-meta {
+      display:flex;justify-content:space-between;
+      font-size:10px;font-family:var(--font-mono);
+      color:rgba(255,255,255,0.3);
+      margin-top:6px;
+    }
+
+    /* Buttons */
+    .btn {
+      width:100%;padding:1rem;
+      border:none;border-radius:12px;
+      font-size:0.875rem;font-weight:700;letter-spacing:0.05em;
+      cursor:pointer;
+      display:flex;align-items:center;justify-content:center;gap:8px;
+      transition:all 0.2s;
+    }
+    .btn-blue   { background:var(--accent);color:#fff;box-shadow:0 8px 20px rgba(59,130,246,0.25); }
+    .btn-blue:hover   { background:#2563eb; }
+    .btn-green  { background:var(--accent2);color:#fff;box-shadow:0 8px 20px rgba(16,185,129,0.25); }
+    .btn-green:hover  { background:#059669; }
+    .btn-pink   { background:var(--pink);color:#fff; }
+    .btn-pink:hover   { background:#db2777; }
+    .btn-ghost  { background:rgba(255,255,255,0.1);color:#fff; }
+    .btn-ghost:hover  { background:rgba(255,255,255,0.18); }
+    .btn-disabled { background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.1);cursor:not-allowed; }
+
+    /* Info box */
+    .info-box {
+      padding:1rem;border-radius:12px;
+      background:rgba(255,255,255,0.05);
+      border:1px solid rgba(255,255,255,0.1);
+      display:flex;gap:12px;
+      font-size:12px;color:rgba(255,255,255,0.6);line-height:1.6;
+    }
+    .info-icon { color:var(--accent);flex-shrink:0;font-size:18px; }
+
+    /* Panel cards */
+    .card {
+      padding:1.5rem;border-radius:16px;
+      border:1px solid rgba(255,255,255,0.1);
+    }
+    .card-blue  { background:rgba(59,130,246,0.1);border-color:rgba(59,130,246,0.2); }
+    .card-green { background:rgba(16,185,129,0.1);border-color:rgba(16,185,129,0.2); }
+    .card-pink  { background:rgba(236,72,153,0.1);border-color:rgba(236,72,153,0.2); }
+
+    .card-title {
+      font-size:10px;letter-spacing:0.15em;text-transform:uppercase;font-weight:700;
+      font-family:var(--font-mono);margin-bottom:1rem;
+    }
+    .card-title-blue  { color:var(--accent); }
+    .card-title-green { color:var(--accent2); }
+    .card-title-pink  { color:var(--pink); }
+
+    /* PCR bar */
+    .pcr-meta { display:flex;justify-content:space-between;align-items:center;font-size:12px;font-family:var(--font-mono);margin-bottom:8px; }
+    .pcr-meta-label { color:rgba(255,255,255,0.4);font-size:10px;text-transform:uppercase;letter-spacing:0.1em; }
+    .pcr-meta-val   { color:var(--accent); }
+    .progress-track { width:100%;height:8px;background:rgba(255,255,255,0.05);border-radius:4px;overflow:hidden; }
+    .progress-fill  { height:100%;background:var(--accent);border-radius:4px;transition:width 1s ease; }
+    .progress-fill-green { background:var(--accent2); }
+
+    /* mRNA display */
+    .mrna-display {
+      background:rgba(0,0,0,0.4);
+      padding:1rem;border-radius:12px;
+      font-family:var(--font-mono);color:var(--accent2);
+      word-break:break-all;font-size:14px;
+      height:128px;overflow-y:auto;text-transform:uppercase;
+      position:relative;
+    }
+    .cursor-blink { animation: blink 1s step-start infinite; }
+    @keyframes blink { 50% { opacity:0; } }
+
+    /* Amino acid chips */
+    .aa-chips { display:flex;flex-wrap:wrap;gap:6px;margin-bottom:1rem; }
+    .aa-chip {
+      padding:2px 8px;
+      background:rgba(255,255,255,0.05);
+      border:1px solid rgba(255,255,255,0.1);
+      border-radius:6px;
+      font-size:10px;font-family:var(--font-mono);
+      color:rgba(255,255,255,0.6);
+    }
+
+    /* AI report */
+    .report-section { border-top:1px solid rgba(255,255,255,0.1);padding-top:1rem;margin-top:1rem; }
+    .report-label { font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:rgba(255,255,255,0.4);margin-bottom:8px; }
+    .report-text { font-size:12px;color:rgba(255,255,255,0.75);line-height:1.7;font-family:Georgia,serif;font-style:italic;white-space:pre-line; }
+    .report-loading { display:flex;align-items:center;gap:8px;font-size:12px;color:rgba(255,255,255,0.4); }
+    .spin { animation: spin 1s linear infinite; display:inline-block; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* Section heading */
+    .section-head h2 { font-size:1.75rem;font-family:var(--font-display);font-style:italic;color:rgba(255,255,255,0.9); }
+    .section-head p  { font-size:13px;color:rgba(255,255,255,0.5);margin-top:6px; }
+
+    .between-row { display:flex;justify-content:space-between;align-items:center; }
+    .reset-btn {
+      width:36px;height:36px;border-radius:50%;
+      background:transparent;border:none;color:rgba(255,255,255,0.4);
+      cursor:pointer;font-size:18px;
+      display:flex;align-items:center;justify-content:center;
+      transition:background 0.2s;
+    }
+    .reset-btn:hover { background:rgba(255,255,255,0.1); }
+
+    /* Right canvas panel */
+    #canvas-wrap {
+      position:relative;
+      background:rgba(0,0,0,0.4);
+      backdrop-filter:blur(4px);
+      overflow:hidden;
+      min-height:400px;
+    }
+    #three-canvas { width:100%;height:100%;display:block; }
+
+    /* Overlay stats */
+    .stats-bar {
+      position:absolute;bottom:2rem;left:2rem;right:2rem;
+      display:flex;justify-content:space-between;align-items:flex-end;
+      pointer-events:none;
+    }
+    .stats-card {
+      background:rgba(255,255,255,0.03);
+      backdrop-filter:blur(12px);
+      border:1px solid rgba(255,255,255,0.07);
+      border-radius:16px;
+      padding:1rem 1.5rem;
+      display:flex;gap:2rem;
+    }
+    .stat-item { display:flex;flex-direction:column; }
+    .stat-val { font-size:1.5rem;font-weight:700;font-family:var(--font-mono);letter-spacing:-0.02em; }
+    .stat-val-blue  { color:var(--accent); }
+    .stat-val-pink  { color:var(--pink); }
+    .stat-val-green { color:var(--accent2); }
+    .stat-lbl { font-size:9px;text-transform:uppercase;letter-spacing:0.2em;color:rgba(255,255,255,0.3);font-weight:700; }
+
+    /* Fade-in animation */
+    .fade-in { animation: fadeIn 0.4s ease both; }
+    @keyframes fadeIn { from { opacity:0;transform:translateX(-16px); } to { opacity:1;transform:translateX(0); } }
+
+    /* Stage label */
+    .stage-label { font-size:12px;color:rgba(255,255,255,0.5);margin-top:4px;font-family:var(--font-mono); }
+
+    /* API key notice */
+    .api-notice {
+      font-size:11px;color:rgba(255,255,255,0.35);
+      font-family:var(--font-mono);
+      padding:8px 12px;
+      background:rgba(255,255,255,0.03);
+      border:1px solid rgba(255,255,255,0.08);
+      border-radius:8px;
+      line-height:1.5;
+    }
+    .api-notice input {
+      width:100%;background:rgba(255,255,255,0.05);
+      border:1px solid rgba(255,255,255,0.15);border-radius:6px;
+      padding:6px 10px;color:#fff;font-family:var(--font-mono);font-size:12px;
+      outline:none;margin-top:6px;
+    }
+    .api-notice input:focus { border-color:var(--accent); }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- Three.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<!-- React 18 -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+<!-- Babel standalone for JSX -->
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script type="text/babel" data-presets="react">
+// ═══════════════════════════════════════════════════════
+// Bio utilities
+// ═══════════════════════════════════════════════════════
+function validateDNA(seq) {
+  return /^[ATGC\n\r ]+$/i.test(seq.toUpperCase());
+}
+
+function transcribe(dna) {
+  return dna.toUpperCase().replace(/\s/g,'').split('').map(b => {
+    switch(b){ case 'A':return 'U'; case 'T':return 'A'; case 'G':return 'C'; case 'C':return 'G'; default:return ''; }
+  }).join('');
+}
+
+const CODON_TABLE = {
+  "AUG":{"aminoAcid":"M","name":"Methionine","symbol":"Met"},
+  "UUU":{"aminoAcid":"F","name":"Phenylalanine","symbol":"Phe"},
+  "UUC":{"aminoAcid":"F","name":"Phenylalanine","symbol":"Phe"},
+  "UUA":{"aminoAcid":"L","name":"Leucine","symbol":"Leu"},
+  "UUG":{"aminoAcid":"L","name":"Leucine","symbol":"Leu"},
+  "UCU":{"aminoAcid":"S","name":"Serine","symbol":"Ser"},
+  "UCC":{"aminoAcid":"S","name":"Serine","symbol":"Ser"},
+  "UCA":{"aminoAcid":"S","name":"Serine","symbol":"Ser"},
+  "UCG":{"aminoAcid":"S","name":"Serine","symbol":"Ser"},
+  "UAU":{"aminoAcid":"Y","name":"Tyrosine","symbol":"Tyr"},
+  "UAC":{"aminoAcid":"Y","name":"Tyrosine","symbol":"Tyr"},
+  "UGU":{"aminoAcid":"C","name":"Cysteine","symbol":"Cys"},
+  "UGC":{"aminoAcid":"C","name":"Cysteine","symbol":"Cys"},
+  "UGG":{"aminoAcid":"W","name":"Tryptophan","symbol":"Trp"},
+  "CUU":{"aminoAcid":"L","name":"Leucine","symbol":"Leu"},
+  "CUC":{"aminoAcid":"L","name":"Leucine","symbol":"Leu"},
+  "CUA":{"aminoAcid":"L","name":"Leucine","symbol":"Leu"},
+  "CUG":{"aminoAcid":"L","name":"Leucine","symbol":"Leu"},
+  "CCU":{"aminoAcid":"P","name":"Proline","symbol":"Pro"},
+  "CCC":{"aminoAcid":"P","name":"Proline","symbol":"Pro"},
+  "CCA":{"aminoAcid":"P","name":"Proline","symbol":"Pro"},
+  "CCG":{"aminoAcid":"P","name":"Proline","symbol":"Pro"},
+  "CAU":{"aminoAcid":"H","name":"Histidine","symbol":"His"},
+  "CAC":{"aminoAcid":"H","name":"Histidine","symbol":"His"},
+  "CAA":{"aminoAcid":"Q","name":"Glutamine","symbol":"Gln"},
+  "CAG":{"aminoAcid":"Q","name":"Glutamine","symbol":"Gln"},
+  "CGU":{"aminoAcid":"R","name":"Arginine","symbol":"Arg"},
+  "CGC":{"aminoAcid":"R","name":"Arginine","symbol":"Arg"},
+  "CGA":{"aminoAcid":"R","name":"Arginine","symbol":"Arg"},
+  "CGG":{"aminoAcid":"R","name":"Arginine","symbol":"Arg"},
+  "AUU":{"aminoAcid":"I","name":"Isoleucine","symbol":"Ile"},
+  "AUC":{"aminoAcid":"I","name":"Isoleucine","symbol":"Ile"},
+  "AUA":{"aminoAcid":"I","name":"Isoleucine","symbol":"Ile"},
+  "ACU":{"aminoAcid":"T","name":"Threonine","symbol":"Thr"},
+  "ACC":{"aminoAcid":"T","name":"Threonine","symbol":"Thr"},
+  "ACA":{"aminoAcid":"T","name":"Threonine","symbol":"Thr"},
+  "ACG":{"aminoAcid":"T","name":"Threonine","symbol":"Thr"},
+  "AAU":{"aminoAcid":"N","name":"Asparagine","symbol":"Asn"},
+  "AAC":{"aminoAcid":"N","name":"Asparagine","symbol":"Asn"},
+  "AAA":{"aminoAcid":"K","name":"Lysine","symbol":"Lys"},
+  "AAG":{"aminoAcid":"K","name":"Lysine","symbol":"Lys"},
+  "AGU":{"aminoAcid":"S","name":"Serine","symbol":"Ser"},
+  "AGC":{"aminoAcid":"S","name":"Serine","symbol":"Ser"},
+  "AGA":{"aminoAcid":"R","name":"Arginine","symbol":"Arg"},
+  "AGG":{"aminoAcid":"R","name":"Arginine","symbol":"Arg"},
+  "GUU":{"aminoAcid":"V","name":"Valine","symbol":"Val"},
+  "GUC":{"aminoAcid":"V","name":"Valine","symbol":"Val"},
+  "GUA":{"aminoAcid":"V","name":"Valine","symbol":"Val"},
+  "GUG":{"aminoAcid":"V","name":"Valine","symbol":"Val"},
+  "GCU":{"aminoAcid":"A","name":"Alanine","symbol":"Ala"},
+  "GCC":{"aminoAcid":"A","name":"Alanine","symbol":"Ala"},
+  "GCA":{"aminoAcid":"A","name":"Alanine","symbol":"Ala"},
+  "GCG":{"aminoAcid":"A","name":"Alanine","symbol":"Ala"},
+  "GAU":{"aminoAcid":"D","name":"Aspartic Acid","symbol":"Asp"},
+  "GAC":{"aminoAcid":"D","name":"Aspartic Acid","symbol":"Asp"},
+  "GAA":{"aminoAcid":"E","name":"Glutamic Acid","symbol":"Glu"},
+  "GAG":{"aminoAcid":"E","name":"Glutamic Acid","symbol":"Glu"},
+  "GGU":{"aminoAcid":"G","name":"Glycine","symbol":"Gly"},
+  "GGC":{"aminoAcid":"G","name":"Glycine","symbol":"Gly"},
+  "GGA":{"aminoAcid":"G","name":"Glycine","symbol":"Gly"},
+  "GGG":{"aminoAcid":"G","name":"Glycine","symbol":"Gly"},
+  "UAA":{"aminoAcid":"_","name":"STOP","symbol":"STP"},
+  "UAG":{"aminoAcid":"_","name":"STOP","symbol":"STP"},
+  "UGA":{"aminoAcid":"_","name":"STOP","symbol":"STP"},
+};
+
+function translateMRNA(mrna) {
+  const result = [];
+  for (let i = 0; i <= mrna.length - 3; i += 3) {
+    const codon = mrna.substring(i, i+3);
+    const aa = CODON_TABLE[codon];
+    if (aa) { result.push(aa); if (aa.aminoAcid === '_') break; }
+  }
+  return result;
+}
+
+function generateProteinPath(length) {
+  const points = [[0,0,0]];
+  let current = [0,0,0];
+  for (let i = 1; i < length; i++) {
+    const theta = (i * 1.5) % (Math.PI * 2);
+    const phi   = (i * 0.8) % Math.PI;
+    const r = 2;
+    current = [
+      current[0] + r * Math.sin(phi) * Math.cos(theta),
+      current[1] + r * Math.sin(phi) * Math.sin(theta),
+      current[2] + r * Math.cos(phi)
+    ];
+    points.push([...current]);
+  }
+  return points;
+}
+
+// ═══════════════════════════════════════════════════════
+// Three.js Scene Manager
+// ═══════════════════════════════════════════════════════
+class BioScene {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
+    this.camera.position.set(0, 5, 25);
+    this.scene.add(this.camera);
+
+    // Lights
+    const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+    const pt1 = new THREE.PointLight(0x3b82f6, 1);
+    pt1.position.set(10,10,10);
+    const pt2 = new THREE.PointLight(0x10b981, 0.5);
+    pt2.position.set(-10,-10,-10);
+    this.scene.add(ambient, pt1, pt2);
+
+    // Stars
+    this._addStars();
+
+    // Orbit control state
+    this._orbit = { active: false, startX: 0, startY: 0, azimuth: 0, elevation: 0.4 };
+    canvas.addEventListener('mousedown', e => { this._orbit.active=true; this._orbit.startX=e.clientX; this._orbit.startY=e.clientY; });
+    window.addEventListener('mouseup',   () => { this._orbit.active=false; });
+    window.addEventListener('mousemove', e => {
+      if (!this._orbit.active) return;
+      this._orbit.azimuth   -= (e.clientX - this._orbit.startX) * 0.005;
+      this._orbit.elevation -= (e.clientY - this._orbit.startY) * 0.005;
+      this._orbit.elevation  = Math.max(-1.2, Math.min(1.2, this._orbit.elevation));
+      this._orbit.startX = e.clientX;
+      this._orbit.startY = e.clientY;
+    });
+
+    this.group = new THREE.Group();
+    this.scene.add(this.group);
+
+    this.autoRotate = true;
+    this._raf = null;
+    this._resize();
+    window.addEventListener('resize', () => this._resize());
+    this._animate();
+  }
+
+  _addStars() {
+    const geo = new THREE.BufferGeometry();
+    const positions = new Float32Array(5000 * 3);
+    for (let i = 0; i < positions.length; i++) positions[i] = (Math.random() - 0.5) * 200;
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const mat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.15, transparent: true, opacity: 0.5 });
+    this.scene.add(new THREE.Points(geo, mat));
+  }
+
+  _resize() {
+    const w = this.canvas.clientWidth;
+    const h = this.canvas.clientHeight || window.innerHeight - 73;
+    this.renderer.setSize(w, h, false);
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+  }
+
+  _animate() {
+    this._raf = requestAnimationFrame(() => this._animate());
+    if (this.autoRotate) this.group.rotation.y += 0.005;
+
+    // Apply orbit
+    const { azimuth, elevation } = this._orbit;
+    const r = 28;
+    this.camera.position.set(
+      r * Math.sin(azimuth) * Math.cos(elevation),
+      r * Math.sin(elevation),
+      r * Math.cos(azimuth) * Math.cos(elevation)
+    );
+    this.camera.lookAt(0, 0, 0);
+
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  clear() {
+    while (this.group.children.length) {
+      const obj = this.group.children[0];
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) obj.material.dispose();
+      this.group.remove(obj);
+    }
+  }
+
+  // Draw a helix strand
+  drawHelix(sequence, { offset=0, color='#3b82f6', twist=0.5, visibleLength, detachmentFactor=0 }={}) {
+    const BASE_COLORS = { A:'#ef4444', T:'#3b82f6', G:'#10b981', C:'#f59e0b', U:'#ec4899' };
+    const currentSeq = visibleLength !== undefined ? sequence.slice(0, Math.ceil(visibleLength)) : sequence;
+    if (currentSeq.length < 2) return;
+
+    const radius = 2 + detachmentFactor * 4;
+    const hpb = 1.2;
+    const total = sequence.length;
+    const pts = currentSeq.split('').map((b, i) => {
+      const angle = i * twist + offset + detachmentFactor * Math.PI * 0.2;
+      return new THREE.Vector3(
+        Math.cos(angle) * radius,
+        i * hpb - (total * hpb) / 2,
+        Math.sin(angle) * radius
+      );
+    });
+
+    // Tube
+    const curve = new THREE.CatmullRomCurve3(pts);
+    const tubeGeo = new THREE.TubeGeometry(curve, 64, 0.1, 8, false);
+    const tubeMat = new THREE.MeshStandardMaterial({ color, transparent: true, opacity: 0.8 });
+    this.group.add(new THREE.Mesh(tubeGeo, tubeMat));
+
+    // Base spheres
+    pts.forEach((pt, i) => {
+      const base = currentSeq[i];
+      const bColor = BASE_COLORS[base] || '#888';
+      const geo = new THREE.SphereGeometry(0.3, 10, 10);
+      const mat = new THREE.MeshStandardMaterial({ color: bColor, emissive: bColor, emissiveIntensity: 0.5 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.copy(pt);
+      this.group.add(mesh);
+    });
+  }
+
+  drawProtein(points, aminoAcids) {
+    if (points.length < 2) return;
+    const pts = points.map(p => new THREE.Vector3(...p));
+    const curve = new THREE.CatmullRomCurve3(pts);
+    const tubeGeo = new THREE.TubeGeometry(curve, 100, 0.2, 8, false);
+    const tubeMat = new THREE.MeshStandardMaterial({ color: '#3b82f6' });
+    this.group.add(new THREE.Mesh(tubeGeo, tubeMat));
+
+    pts.forEach((pt, i) => {
+      const geo = new THREE.SphereGeometry(0.5, 12, 12);
+      const color = aminoAcids[i] ? '#10b981' : '#555';
+      const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.2 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.copy(pt);
+      this.group.add(mesh);
+    });
+  }
+
+  destroy() {
+    cancelAnimationFrame(this._raf);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// Claude API helper
+// ═══════════════════════════════════════════════════════
+async function generateAIReport(dna, mrna, protein, apiKey) {
+  const proteinStr = protein.map(p => p.aminoAcid).join('');
+  const prompt = `Act as a molecular bio-informatician. Given the DNA sequence "${dna}", it transcribes to mRNA "${mrna}" and translates to the protein sequence "${proteinStr}".
+Briefly describe the potential function, stability, and hydrophobicity of this hypothetical peptide. Keep it scientific but accessible. Format in 3 short bullet points.`;
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 400,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${response.status}`);
+  }
+  const data = await response.json();
+  return data.content?.[0]?.text || 'Report generated but empty.';
+}
+
+// ═══════════════════════════════════════════════════════
+// React App
+// ═══════════════════════════════════════════════════════
+const { useState, useEffect, useRef, useMemo } = React;
+
+function StageIndicator({ current }) {
+  const steps = ['INPUT','PCR','TRANSCRIPTION','TRANSLATION'];
+  const idx = steps.indexOf(current === 'REPORT' ? 'TRANSLATION' : current);
+  return (
+    <div className="stage-dots">
+      {steps.map((s, i) => (
+        <React.Fragment key={s}>
+          <div className={`stage-dot ${i <= idx ? 'active' : 'inactive'}`} />
+          {i < steps.length - 1 && <div className={`stage-line ${i < idx ? 'active' : 'inactive'}`} />}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+function Stat({ value, label, cls }) {
+  return (
+    <div className="stat-item">
+      <span className={`stat-val ${cls}`}>{value}</span>
+      <span className="stat-lbl">{label}</span>
+    </div>
+  );
+}
+
+export default function App() {
+  const [dnaSeq, setDnaSeq] = useState('ATGCATGCATGC');
+  const [stage, setStage] = useState('INPUT');
+  const [mrnaSeq, setMrnaSeq] = useState('');
+  const [protein, setProtein] = useState([]);
+  const [pcrCount, setPcrCount] = useState(1);
+  const [transcriptionProgress, setTranscriptionProgress] = useState(0);
+  const [aiReport, setAiReport] = useState('');
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+
+  const canvasRef = useRef(null);
+  const sceneRef  = useRef(null);
+
+  const proteinPath = useMemo(() => generateProteinPath(protein.length), [protein.length]);
+
+  // Init Three.js scene
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    const scene = new BioScene(canvasRef.current);
+    sceneRef.current = scene;
+    return () => { scene.destroy(); };
+  }, []);
+
+  // Update scene when stage/data changes
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    scene.clear();
+
+    if (stage === 'INPUT') {
+      scene.autoRotate = true;
+      scene.drawHelix('ATGCATGCATGCATGC', { offset: 0, color: '#3b82f6', twist: 0.5 });
+    } else if (stage === 'PCR') {
+      scene.autoRotate = false;
+      scene.drawHelix(dnaSeq, { offset: 0, color: '#3b82f6', twist: 0.3 });
+      if (pcrCount > 1) scene.drawHelix(dnaSeq, { offset: Math.PI, color: '#3b82f6', twist: 0.3 });
+    } else if (stage === 'TRANSCRIPTION') {
+      scene.autoRotate = false;
+      scene.drawHelix(dnaSeq, { offset: 0, color: '#3b82f6', twist: 0.3 });
+      const det = Math.min(transcriptionProgress / mrnaSeq.length, 1) * 0.5;
+      scene.drawHelix(mrnaSeq, { offset: Math.PI/2, color: '#ec4899', twist: 0.3, visibleLength: transcriptionProgress, detachmentFactor: det });
+    } else if (stage === 'TRANSLATION') {
+      scene.autoRotate = false;
+      scene.drawProtein(proteinPath, protein);
+    }
+  }, [stage, pcrCount, transcriptionProgress, protein, proteinPath, dnaSeq, mrnaSeq]);
+
+  // Transcription animation
+  useEffect(() => {
+    if (stage !== 'TRANSCRIPTION' || transcriptionProgress >= mrnaSeq.length) return;
+    const id = setInterval(() => {
+      setTranscriptionProgress(p => Math.min(p + 0.5, mrnaSeq.length));
+    }, 50);
+    return () => clearInterval(id);
+  }, [stage, transcriptionProgress, mrnaSeq.length]);
+
+  // AI analysis after translation
+  useEffect(() => {
+    if (stage === 'TRANSLATION' && protein.length > 0 && !aiReport) {
+      if (!apiKey) {
+        setAiReport('Enter your Anthropic API key above to generate a molecular analysis report.');
+        return;
+      }
+      setIsGeneratingReport(true);
+      generateAIReport(dnaSeq, mrnaSeq, protein, apiKey)
+        .then(r => setAiReport(r))
+        .catch(err => setAiReport(`Analysis unavailable: ${err.message}`))
+        .finally(() => setIsGeneratingReport(false));
+    }
+  }, [stage, protein]);
+
+  const handleStart = () => {
+    if (!validateDNA(dnaSeq)) { alert('Invalid DNA sequence. Use only A, T, G, C.'); return; }
+    setStage('PCR');
+  };
+
+  const handleTranscribe = () => {
+    const rna = transcribe(dnaSeq);
+    setMrnaSeq(rna);
+    setTranscriptionProgress(0);
+    setStage('TRANSCRIPTION');
+  };
+
+  const handleTranslate = () => {
+    setProtein(translateMRNA(mrnaSeq));
+    setStage('TRANSLATION');
+  };
+
+  const reset = () => {
+    setStage('INPUT'); setMrnaSeq(''); setProtein([]);
+    setPcrCount(1); setTranscriptionProgress(0); setAiReport('');
+  };
+
+  const pcrPct = (pcrCount / 10) * 100;
+  const transPct = mrnaSeq.length ? Math.floor((transcriptionProgress / mrnaSeq.length) * 100) : 0;
+  const transComplete = transcriptionProgress >= mrnaSeq.length && mrnaSeq.length > 0;
+
+  return (
+    <div id="app" className="scientific-grid">
+      {/* Ambient blobs */}
+      <div className="blob blob-blue" />
+      <div className="blob blob-green" />
+
+      {/* Header */}
+      <header>
+        <div className="logo-wrap">
+          <div className="logo-icon">🧬</div>
+          <div>
+            <div className="logo-title">BIOGENIX</div>
+            <div className="logo-sub">Central Dogma Simulation v2.0</div>
+          </div>
+        </div>
+        <StageIndicator current={stage} />
+      </header>
+
+      {/* Main */}
+      <main>
+        {/* ── Left Panel ── */}
+        <aside>
+          {stage === 'INPUT' ? (
+            <div className="fade-in" style={{display:'flex',flexDirection:'column',gap:'1.5rem'}}>
+              <div className="section-head">
+                <h2>Entry Protocol</h2>
+                <p>Sequence input required for molecular synthesis.</p>
+              </div>
+
+              <div>
+                <label className="field-label">DNA Sequence (ATGC)</label>
+                <textarea
+                  value={dnaSeq}
+                  onChange={e => setDnaSeq(e.target.value.toUpperCase())}
+                  placeholder="Enter ATGC sequence..."
+                />
+                <div className="seq-meta">
+                  <span>LENGTH: {dnaSeq.length} BP</span>
+                  <span>TYPE: GENOMIC DNA</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="field-label">Anthropic API Key (for AI report)</label>
+                <div className="api-notice">
+                  Key is used only in-browser for the molecular analysis step.
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={e => setApiKey(e.target.value)}
+                    placeholder="sk-ant-..."
+                  />
+                </div>
+              </div>
+
+              <button className="btn btn-blue" onClick={handleStart}>
+                INITIALIZE SYNTHESIS <span>→</span>
+              </button>
+
+              <div className="info-box">
+                <span className="info-icon">ℹ</span>
+                <span>DNA sequences represent the genetic blueprint. Our simulator will amplify this sequence via PCR before initiating transcription.</span>
+              </div>
+            </div>
+          ) : (
+            <div className="fade-in" style={{display:'flex',flexDirection:'column',gap:'1.5rem'}}>
+              <div className="between-row">
+                <div>
+                  <h2 style={{fontSize:'1.4rem',fontFamily:'var(--font-display)',fontStyle:'italic',color:'rgba(255,255,255,0.9)'}}>Synthesis Active</h2>
+                  <div className="stage-label">Current State: {stage}</div>
+                </div>
+                <button className="reset-btn" onClick={reset} title="Reset">↺</button>
+              </div>
+
+              {/* PCR */}
+              {stage === 'PCR' && (
+                <div style={{display:'flex',flexDirection:'column',gap:'1rem'}}>
+                  <div className="card card-blue glow-blue">
+                    <div className="card-title card-title-blue">⚡ Thermal Cycler</div>
+                    <div className="pcr-meta">
+                      <span className="pcr-meta-label">Amplification Cycle</span>
+                      <span className="pcr-meta-val">2^{pcrCount} COPIES</span>
+                    </div>
+                    <div className="progress-track">
+                      <div className="progress-fill" style={{width:`${pcrPct}%`}} />
+                    </div>
+                    <button
+                      className="btn btn-ghost"
+                      style={{marginTop:'1.5rem',fontSize:'12px',letterSpacing:'0.1em',borderColor:'rgba(59,130,246,0.3)',border:'1px solid rgba(59,130,246,0.3)',background:'rgba(59,130,246,0.15)',color:'var(--accent)'}}
+                      onClick={() => setPcrCount(c => Math.min(c+1, 10))}
+                    >
+                      RUN NEXT CYCLE
+                    </button>
+                  </div>
+                  <button className="btn btn-green" onClick={handleTranscribe}>
+                    🧪 INITIATE TRANSCRIPTION
+                  </button>
+                </div>
+              )}
+
+              {/* Transcription */}
+              {stage === 'TRANSCRIPTION' && (
+                <div style={{display:'flex',flexDirection:'column',gap:'1rem'}}>
+                  <div className="card card-green glow-green">
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}}>
+                      <div className="card-title card-title-green" style={{marginBottom:0}}>mRNA Synthesis</div>
+                      <span style={{fontSize:'10px',fontFamily:'var(--font-mono)',color:'var(--accent2)'}}>{transPct}%</span>
+                    </div>
+                    <div className="progress-track" style={{marginBottom:'1rem'}}>
+                      <div className="progress-fill progress-fill-green" style={{width:`${transPct}%`,transition:'width 0.1s linear'}} />
+                    </div>
+                    <div className="mrna-display">
+                      {mrnaSeq.slice(0, Math.ceil(transcriptionProgress))}
+                      <span className="cursor-blink">_</span>
+                    </div>
+                  </div>
+                  <button
+                    className={`btn ${transComplete ? 'btn-pink' : 'btn-disabled'}`}
+                    onClick={transComplete ? handleTranslate : undefined}
+                    disabled={!transComplete}
+                  >
+                    ⚡ COMPLETE TRANSLATION
+                  </button>
+                </div>
+              )}
+
+              {/* Translation */}
+              {stage === 'TRANSLATION' && (
+                <div style={{display:'flex',flexDirection:'column',gap:'1rem'}}>
+                  <div className="card card-pink">
+                    <div className="card-title card-title-pink">Peptide Analysis</div>
+                    <div className="aa-chips">
+                      {protein.map((aa, i) => (
+                        <div key={i} className="aa-chip">{aa.symbol}</div>
+                      ))}
+                    </div>
+                    <div className="report-section">
+                      <div className="report-label">Molecular Report (AI Predicted)</div>
+                      {isGeneratingReport ? (
+                        <div className="report-loading">
+                          <span className="spin">↺</span> Processing molecular data...
+                        </div>
+                      ) : (
+                        <div className="report-text">{aiReport}</div>
+                      )}
+                    </div>
+                  </div>
+                  <button className="btn btn-ghost" onClick={reset}>NEW SEQUENCE</button>
+                </div>
+              )}
+            </div>
+          )}
+        </aside>
+
+        {/* ── Right: 3D Canvas ── */}
+        <div id="canvas-wrap">
+          <canvas ref={canvasRef} id="three-canvas" style={{width:'100%',height:'100%'}} />
+
+          {/* Stats overlay */}
+          <div className="stats-bar">
+            <div className="stats-card">
+              <Stat value={dnaSeq.length} label="Base Pairs" cls="stat-val-blue" />
+              {mrnaSeq && <Stat value={mrnaSeq.length} label="RNA Length" cls="stat-val-pink" />}
+              {protein.length > 0 && <Stat value={protein.length} label="Amino Acids" cls="stat-val-green" />}
+            </div>
+            <div style={{width:48,height:48,borderRadius:'50%',border:'1px solid rgba(255,255,255,0.1)',background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,color:'rgba(255,255,255,0.35)'}}>
+              🔬
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+// Mount
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>
