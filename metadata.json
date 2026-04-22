@@ -1,0 +1,6 @@
+{
+  "name": "Biogenix: DNA Central Dogma Visualizer",
+  "description": "An immersive scientific visualizer for DNA amplification (PCR), transcription to mRNA, and 3D protein folding analysis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
